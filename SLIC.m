@@ -1,15 +1,15 @@
 close all;
 clear all;
 
-Ki = 15; %nbr superpixel en y
-Kj = 15; %nbr superpixel en x
+Ki = 20; %nbr superpixel en y
+Kj = 20; %nbr superpixel en x
 
 pourcentageFusion=0.2;
 
 ratio=0.6;%Compression de l'image
 
 n = 9; %Taille voisinage (impaire)
-m = 5;
+m = 3; %coef pour la distance du kmeans(5) importance de distance spatiale
 seuil = 145; %Binarisation
 
 imga = imread('images/viff.000.ppm');
@@ -24,21 +24,20 @@ A(:,:) = double(lab(:,:,2));
 B(:,:) = double(lab(:,:,3));
 
 K=Ki*Kj;
-% R(:,:) = img(:,:,1);
-% V(:,:) = img(:,:,2);
-% B(:,:) = img(:,:,3);
 
-%affichage_image(img,'SLIC',1);
-figure;
+figure('Name','Img Originale')
 imagesc(img);
-figure;
+
+figure('Name','Img en Lab et centres homogènes')
 imagesc(lab);
 
 [nlignes,ncolonnes,ncanaux] = size(img);
 N = nlignes*ncolonnes;
 tailleMoyenne = N/K;
 
-%Initialisation
+%CALCUL DES CENTRES
+
+%Initialisation des centres
 S=sqrt(N/(Ki*Kj));
 Si = nlignes/Ki;
 Sj = ncolonnes/Kj;
@@ -49,13 +48,12 @@ for i=1:Ki
     y = min((2*i -1)*round(nlignes/(2*Ki)),nlignes);
     for j=1:Kj
         x = min((2*j -1)*round(ncolonnes/(2*Kj)),ncolonnes);
-        %[x y R(y,x) V(y,x) B(y,x)]
-        %centres(l,:) = [x y R(y,x) V(y,x) B(y,x)];
         centres(l,5) = x;centres(l,4)=y;centres(l,1) = L(y,x);centres(l,2)= A(y,x);centres(l,3)=B(y,x);
         l=l+1;
     end;
 end;
 
+%Affichage centres initiaux
 hold on;
 for p=1:Ki*Kj
     plot(centres(p,5),centres(p,4),'+','MarkerSize',10,'MarkerEdgeColor','b');
@@ -71,7 +69,6 @@ for i=1:K
     xcentre = centres(i,5);
     ycentre = centres(i,4);
     
-    
 %     minx = max(floor(xcentre - (n-1)/2),1);
 %     maxx = min(floor(xcentre + (n-1)/2),ncolonnes);
 %     miny = max(floor(ycentre - (n-1)/2),1);
@@ -83,22 +80,23 @@ for i=1:K
     maxy = floor(ycentre + (n-1)/2);
     if(minx>1 & maxx<ncolonnes & miny>1 & maxy<nlignes)
     
-    voisinageFx(1:n,1:n) = Fx(miny:maxy,minx:maxx);
-    voisinageFy(1:n,1:n) = Fy(miny:maxy,minx:maxx);
-    normvoisi(1:n,1:n) = voisinageFx.^2 + voisinageFy.^2;
+        voisinageFx(1:n,1:n) = Fx(miny:maxy,minx:maxx);
+        voisinageFy(1:n,1:n) = Fy(miny:maxy,minx:maxx);
+        normvoisi(1:n,1:n) = voisinageFx.^2 + voisinageFy.^2;
     
-    [M,Indmin] = min(normvoisi(:));
-    [I_row, I_col] = ind2sub(size(normvoisi),Indmin);
+        [M,Indmin] = min(normvoisi(:));
+        [I_row, I_col] = ind2sub(size(normvoisi),Indmin);
     
-    di = I_row - (n-1)/2;
-    dj = I_col - (n-1)/2;
-    xcentre = xcentre+dj;
-    ycentre = ycentre+di;
-    centres(i,:) = [L(ycentre,xcentre) A(ycentre,xcentre) B(ycentre,xcentre) ycentre xcentre];
+        di = I_row - (n-1)/2;
+        dj = I_col - (n-1)/2;
+        xcentre = xcentre+dj;
+        ycentre = ycentre+di;
+        centres(i,:) = [L(ycentre,xcentre) A(ycentre,xcentre) B(ycentre,xcentre) ycentre xcentre];
     end;
 end;
 
-figure;
+%Affichage des centres deplaces
+figure('Name','Déplacement des centres')
 imagesc(img);
 
 hold on;
@@ -108,16 +106,17 @@ end;
 pause;
 
 
+%CLASSIFICATION KMEANS
+
 X = double([ L(:) A(:) B(:) I(:) J(:)]);
-
-
 [idx,centres] = kmeans2(X,Ki*Kj,m,S,'start',centres,'distance','sqEuclidean');
 
-%affichage_resultat(X,idx,K,ncanaux,'Segmentation SLIC',1);
-figure;
+%Affichage resultat kmeans
+figure('Name','Classification kmeans avec distance modifiée')
 imgidx = reshape(idx,nlignes,ncolonnes);
 imagesc(imgidx);
 pause;
+
 
 
 %FUSION DES REGIONS
@@ -128,6 +127,7 @@ dernierId = 0;
 
 index = [];
 
+%Etiquettage en zone connexe
 for classeCourante=1:K
     H=zeros(nlignes,ncolonnes);
     H(imgClasse==classeCourante)=1;
@@ -143,13 +143,14 @@ num = dernierId;
 
 seuilFusion = floor(pourcentageFusion*tailleMoyenne);
 termine = false;
-deci=[-1 -1 -1 0 0 +1 +1 +1];
-decj=[-1 0 1 -1 +1 -1 0 +1];
+deci=[-1 -1 -1 0 0 +1 +1 +1];%deplacement pour le parcours des pixels adjacents en 8 connexite
+decj=[-1 0 1 -1 +1 -1 0 +1];%deplacement pour le parcours des pixels adjacents en 8 connexite
 
 while (~termine)
     termine = true;
     for composanteCourante=1:num
-        composanteCourante/num
+        %progression: composanteCourante/num
+        
         taille = length(find(conn==composanteCourante));
         if( taille<=seuilFusion & taille>0)
             %Recherche de la zone voisine la plus grande
@@ -158,9 +159,11 @@ while (~termine)
             adja = zeros(num,1);
             [r,c,v] = find(conn==composanteCourante);
             for u=1:length(r)
+                %Parcours des pixels de la zone connexe
                 indi=r(u);
                 indj=c(u);
                 for g=1:8
+                    %Parcours des pixels adjacents à (indi,indj)
                     iadja=indi+deci(g);jadja=indj+decj(g);
                     if(iadja<nlignes & iadja>0 & jadja<ncolonnes & jadja>0)
                         connij = conn(iadja,jadja);
@@ -171,8 +174,8 @@ while (~termine)
                 end;
             end;
             
-            [val,indmax] = max(adja);
-            %fusion
+            [val,indmax] = max(adja);%choix de la zone adjacente la plus grande
+            %Fusion
             conn(conn==composanteCourante) = indmax;
             termine = false;
         end;
@@ -186,12 +189,12 @@ for i=1:nlignes
     end;
 end;
 
-figure;
+figure('Name','Renforcement Connexité');
 %affichage_resultat(X,conn(:),K,ncanaux,'Segmentation SLIC',1);
 imagesc(conn);
 
 
-%Segmentation Binaire
+%SEGMENTATION BINAIRE
 
 centresInterieur = find(centres(:,1)>seuil);
 binarisation = zeros(nlignes,ncolonnes);
@@ -200,7 +203,7 @@ for i=1:length(centresInterieur)
     binarisation = binarisation + H;
 end;
 
-figure;
+figure('Name','Binarisation')
 imagesc(binarisation);
 
 % C2 = makecform('lab2srgb');
