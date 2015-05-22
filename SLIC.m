@@ -1,16 +1,16 @@
 close all;
 clear all;
 
-Ki = 20; %nbr superpixel en y
-Kj = 20; %nbr superpixel en x
+Ki = 12; %nbr superpixel en y
+Kj = 12; %nbr superpixel en x
 
-pourcentageFusion=0.2;
+pourcentageFusion=0.01;
 
 ratio=0.6;%Compression de l'image
 
 n = 9; %Taille voisinage (impaire)
 m = 3; %coef pour la distance du kmeans(5) importance de distance spatiale
-seuil = 145; %Binarisation
+seuil = 130; %Binarisation
 
 imga = imread('images/viff.000.ppm');
 img = imresize(imga, ratio);
@@ -19,9 +19,12 @@ img = imresize(imga, ratio);
 C = makecform('srgb2lab');
 lab = applycform(img,C);
 
-L(:,:) = double(lab(:,:,1));
-A(:,:) = double(lab(:,:,2));
-B(:,:) = double(lab(:,:,3));
+labd = lab2double(lab);
+
+
+L(:,:) = labd(:,:,1);
+A(:,:) = labd(:,:,2);
+B(:,:) = labd(:,:,3);
 
 K=Ki*Kj;
 
@@ -58,7 +61,7 @@ hold on;
 for p=1:Ki*Kj
     plot(centres(p,5),centres(p,4),'+','MarkerSize',10,'MarkerEdgeColor','b');
 end;
-pause;
+%pause;
 
 %Decalage centres
 [Fx,Fy] = gradient(L(:,:));
@@ -103,19 +106,19 @@ hold on;
 for p=1:K
     plot(centres(p,5),centres(p,4),'+','MarkerSize',10,'MarkerEdgeColor','b');
 end;
-pause;
+%pause;
 
 
 %CLASSIFICATION KMEANS
 
-X = double([ L(:) A(:) B(:) I(:) J(:)]);
+X = [ L(:) A(:) B(:) I(:) J(:)];
 [idx,centres] = kmeans2(X,Ki*Kj,m,S,'start',centres,'distance','sqEuclidean');
 
 %Affichage resultat kmeans
 figure('Name','Classification kmeans avec distance modifiée')
 imgidx = reshape(idx,nlignes,ncolonnes);
 imagesc(imgidx);
-pause;
+%pause;
 
 
 
@@ -196,20 +199,8 @@ imagesc(conn);
 
 %SEGMENTATION BINAIRE
 
-centresInterieur = find(centres(:,1)>seuil);
-binarisation = zeros(nlignes,ncolonnes);
-for i=1:length(centresInterieur)
-    H = conn == centresInterieur(i);
-    binarisation = binarisation + H;
-end;
-
-figure('Name','Binarisation')
-imagesc(binarisation);
-
-% C2 = makecform('lab2srgb');
-% centresrgb = applycform(centres(:,1:3),C2);
-% 
-% centresInterieur = find(centresrgb(:,1)>seuil);
+%centresInterieur = find(centresrgb(:,1)>seuil);
+% centresInterieur = find(centresrgb(:,3)>centresrgb(:,1) & centresrgb(:,2)> centresrgb(:,1));
 % binarisation = zeros(nlignes,ncolonnes);
 % for i=1:length(centresInterieur)
 %     H = conn == centresInterieur(i);
@@ -219,5 +210,44 @@ imagesc(binarisation);
 % figure;
 % imagesc(binarisation);
 
+C2 = makecform('lab2srgb');
+centresrgb = centres;
 
+temp = conn(:);
+[i,j] = size(temp);
+rres=temp;
+gres=temp;
+bres=temp;
+for i =1:K
+    ind=find(conn==i);
+    rres(ind)=centresrgb(i,1);
+    gres(ind)=centresrgb(i,2);
+    bres(ind)=centresrgb(i,3);
+end;
 
+rres = reshape(rres,nlignes,ncolonnes);
+gres = reshape(gres,nlignes,ncolonnes);
+bres = reshape(bres,nlignes,ncolonnes);
+
+res(:,:,1) = rres;
+res(:,:,2) = gres;
+res(:,:,3) = bres;
+
+res = lab2uint8(res);
+res = applycform(res,C2);
+
+figure;
+imagesc(res);
+
+figure;
+imagesc(res(:,:,1)<seuil);
+
+% centresInterieur = find(centres(:,1)>seuil);
+% binarisation = zeros(nlignes,ncolonnes);
+% for i=1:length(centresInterieur)
+%     H = conn == centresInterieur(i);
+%     binarisation = binarisation + H;
+% end;
+% 
+% figure('Name','Binarisation')
+% imagesc(binarisation);
