@@ -1,18 +1,21 @@
 close all;
 clear all;
 
-Ki = 12; %nbr superpixel en y
-Kj = 12; %nbr superpixel en x
+%PARAMETRES:
+Ki = 10; %nbr superpixel en y
+Kj = 10; %nbr superpixel en x
 
 pourcentageFusion=0.01;
 
 ratio=0.6;%Compression de l'image
 
 n = 9; %Taille voisinage (impaire)
-m = 3; %coef pour la distance du kmeans(5) importance de distance spatiale
+m = 30%3; %coef pour la distance du kmeans(5) importance de distance spatiale
 seuil = 130; %Binarisation
 
 imga = imread('images/viff.000.ppm');
+
+%Traitement image
 img = imresize(imga, ratio);
 
 %Conversion Lab
@@ -21,17 +24,16 @@ lab = applycform(img,C);
 
 labd = lab2double(lab);
 
-
 L(:,:) = labd(:,:,1);
 A(:,:) = labd(:,:,2);
 B(:,:) = labd(:,:,3);
 
 K=Ki*Kj;
 
-figure('Name','Img Originale')
+figure('Name','Img Originale');
 imagesc(img);
 
-figure('Name','Img en Lab et centres homogènes')
+figure('Name','Img en Lab');
 imagesc(lab);
 
 [nlignes,ncolonnes,ncanaux] = size(img);
@@ -48,20 +50,21 @@ centres = zeros(Ki*Kj,5);
 [I,J] = meshgrid(1:ncolonnes,1:nlignes);
 l = 1;
 for i=1:Ki
-    y = min((2*i -1)*round(nlignes/(2*Ki)),nlignes);
+    y = min(round((2*i -1)*nlignes/(2*Ki)),nlignes);
     for j=1:Kj
-        x = min((2*j -1)*round(ncolonnes/(2*Kj)),ncolonnes);
+        x = min(round((2*j -1)*ncolonnes/(2*Kj)),ncolonnes);
         centres(l,5) = x;centres(l,4)=y;centres(l,1) = L(y,x);centres(l,2)= A(y,x);centres(l,3)=B(y,x);
         l=l+1;
     end;
 end;
 
 %Affichage centres initiaux
+figure('Name','centres homogènes');
+imagesc(img);
 hold on;
 for p=1:Ki*Kj
     plot(centres(p,5),centres(p,4),'+','MarkerSize',10,'MarkerEdgeColor','b');
 end;
-%pause;
 
 %Decalage centres
 [Fx,Fy] = gradient(L(:,:));
@@ -71,11 +74,6 @@ voisinageFy=zeros(n,n);
 for i=1:K
     xcentre = centres(i,5);
     ycentre = centres(i,4);
-    
-%     minx = max(floor(xcentre - (n-1)/2),1);
-%     maxx = min(floor(xcentre + (n-1)/2),ncolonnes);
-%     miny = max(floor(ycentre - (n-1)/2),1);
-%     maxy = min(floor(ycentre + (n-1)/2),nlignes);
     
     minx = floor(xcentre - (n-1)/2);
     maxx = floor(xcentre + (n-1)/2);
@@ -118,8 +116,6 @@ X = [ L(:) A(:) B(:) I(:) J(:)];
 figure('Name','Classification kmeans avec distance modifiée')
 imgidx = reshape(idx,nlignes,ncolonnes);
 imagesc(imgidx);
-%pause;
-
 
 
 %FUSION DES REGIONS
@@ -193,24 +189,11 @@ for i=1:nlignes
 end;
 
 figure('Name','Renforcement Connexité');
-%affichage_resultat(X,conn(:),K,ncanaux,'Segmentation SLIC',1);
 imagesc(conn);
 
 
 %SEGMENTATION BINAIRE
 
-%centresInterieur = find(centresrgb(:,1)>seuil);
-% centresInterieur = find(centresrgb(:,3)>centresrgb(:,1) & centresrgb(:,2)> centresrgb(:,1));
-% binarisation = zeros(nlignes,ncolonnes);
-% for i=1:length(centresInterieur)
-%     H = conn == centresInterieur(i);
-%     binarisation = binarisation + H;
-% end;
-% 
-% figure;
-% imagesc(binarisation);
-
-C2 = makecform('lab2srgb');
 centresrgb = centres;
 
 temp = conn(:);
@@ -234,6 +217,7 @@ res(:,:,2) = gres;
 res(:,:,3) = bres;
 
 res = lab2uint8(res);
+C2 = makecform('lab2srgb');
 res = applycform(res,C2);
 
 figure;
@@ -241,13 +225,3 @@ imagesc(res);
 
 figure;
 imagesc(res(:,:,1)<seuil);
-
-% centresInterieur = find(centres(:,1)>seuil);
-% binarisation = zeros(nlignes,ncolonnes);
-% for i=1:length(centresInterieur)
-%     H = conn == centresInterieur(i);
-%     binarisation = binarisation + H;
-% end;
-% 
-% figure('Name','Binarisation')
-% imagesc(binarisation);

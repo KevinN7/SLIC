@@ -1,0 +1,17 @@
+LISEZMOI
+
+Paramètres : 
+
+Ki: Le nombre de superpixel sur l'axe des ordonnées
+Kj: Le nombre de superpixel sur l'axe des absisses
+pourcentageFusion: Pourcentage du nombre moyen de pixel dans un superpixel, si le nombre de pixel est inférieur à
+	ce seuil alors le superpixel est fusionné avec la plus grande zone connexe adjacente
+ratio: Compression de l'image en pourcentage pour accélérer le traitement
+
+n: Taille voisinage pour la partie décalage des centres suivant le gradient
+m: Coefficient pour la distance utilisé dans le kmeans, modifie l'importance de la distance spatiale
+seuil: seuil utilisé pour la binarisation
+
+Utilisation :
+
+Pour lancer l'algorithme il suffit de lancer le script SLIC.m
